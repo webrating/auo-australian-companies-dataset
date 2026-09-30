@@ -10,7 +10,7 @@ Direct CSV downloads (always the latest):
 - [companies.csv](https://huggingface.co/datasets/ausapis/australian-companies/resolve/main/companies.csv)
 - [former_names.csv](https://huggingface.co/datasets/ausapis/australian-companies/resolve/main/former_names.csv)
 
-Need live ABN and ACN lookups instead of a weekly file? [AUO](https://auo.com.au) joins every free Australian government business register into one API, with KYB verification, sanctions screening and change monitoring.
+Need live ABN and ACN lookups instead of a weekly file? [AUO Business Data API](https://auo.com.au) joins every free Australian government business register into one API, with KYB verification, sanctions screening and change monitoring.
 
 ## Why this exists
 
