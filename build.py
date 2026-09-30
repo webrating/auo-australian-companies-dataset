@@ -176,11 +176,10 @@ def push_kaggle(out_dir: Path, source_url: str, changed: bool) -> None:
     api = KaggleApi()
     api.authenticate()
     ref = os.environ.get("KAGGLE_DATASET", DEFAULT_REPO)
-    try:
-        api.dataset_status(ref)
-        exists = True
-    except Exception:
-        exists = False
+    # dataset_status returns 403 while a new upload is still processing, so
+    # check the owner's dataset list instead.
+    owner = ref.split("/")[0]
+    exists = any(d.ref == ref for d in api.dataset_list(user=owner))
     if exists and not changed:
         print("Kaggle: data unchanged, skipping")
         return
