@@ -168,10 +168,55 @@ def push(out_dir: Path, source_url: str) -> bool:
     return info.oid != before
 
 
+# File and column descriptions shown on Kaggle (and counted in its usability score).
+KAGGLE_RESOURCES = [
+    {
+        "path": COMPANIES,
+        "description": "One row per company on the ASIC register (about 4 million): ACN, ABN, "
+                       "current name, type, class, status and registration dates.",
+        "schema": {"fields": [
+            {"name": "acn", "type": "string", "description": "Australian Company Number, 9 digits with leading zeros. For type RACN this is the ARBN."},
+            {"name": "abn", "type": "string", "description": "Australian Business Number, 11 digits. Blank if the company has no ABN."},
+            {"name": "name", "type": "string", "description": "Current company name."},
+            {"name": "name_start_date", "type": "datetime", "description": "Date the current name took effect (only for renamed companies)."},
+            {"name": "type", "type": "string", "description": "Company type: APTY proprietary, APUB public, FNOS foreign, RACN registered Australian body, CCIV collective investment vehicle."},
+            {"name": "class", "type": "string", "description": "Liability class: LMSH shares, LMGT guarantee, LMSG shares and guarantee, UNLM unlimited, NLIA no liability, NONE."},
+            {"name": "sub_class", "type": "string", "description": "Sub class code, e.g. PROP proprietary other, PSTC superannuation trustee, LIST listed public, ULST unlisted public."},
+            {"name": "status", "type": "string", "description": "REGD registered, DRGD deregistered, SOFF strike-off in progress, EXAD external administration, NOAC not active, CNCL cancelled, DISS dissolved."},
+            {"name": "registration_date", "type": "datetime", "description": "Date the company was registered (YYYY-MM-DD)."},
+            {"name": "deregistration_date", "type": "datetime", "description": "Date the company was deregistered, if any."},
+            {"name": "previous_state", "type": "string", "description": "State of original registration, for companies registered before national registration."},
+            {"name": "state_registration_number", "type": "string", "description": "Registration number assigned by that state."},
+        ]},
+    },
+    {
+        "path": FORMER_NAMES,
+        "description": "One row per former company name (about 430,000). Join to companies.csv on acn.",
+        "schema": {"fields": [
+            {"name": "acn", "type": "string", "description": "ACN of the company, matching companies.csv."},
+            {"name": "former_name", "type": "string", "description": "A name the company previously held."},
+        ]},
+    },
+]
+
+KAGGLE_PROVENANCE = (
+    "Source: Australian Securities and Investments Commission (ASIC), Company Dataset on data.gov.au "
+    "(https://data.gov.au/data/dataset/asic-companies), licensed under CC BY 3.0 AU. ASIC uploads a "
+    "register snapshot every Tuesday. A GitHub Action "
+    "(https://github.com/webrating/auo-australian-companies-dataset) downloads it every Wednesday and "
+    "reshapes it: one row per company instead of one row per company name, former names split into "
+    "former_names.csv, dates converted to ISO 8601, ABN 0 replaced with blank, whitespace trimmed. "
+    "No records are added or removed."
+)
+
+
 def push_kaggle(out_dir: Path, source_url: str, changed: bool) -> None:
     """Upload to Kaggle directly. Kaggle's "Remote URL" import can't follow
     Hugging Face's redirect to its CDN, so it can't pull the files itself."""
+    import time
+
     from kaggle.api.kaggle_api_extended import KaggleApi
+    from requests.exceptions import HTTPError
 
     api = KaggleApi()
     api.authenticate()
@@ -180,36 +225,54 @@ def push_kaggle(out_dir: Path, source_url: str, changed: bool) -> None:
     # check the owner's dataset list instead.
     owner = ref.split("/")[0]
     exists = any(d.ref == ref for d in api.dataset_list(user=owner))
-    if exists and not changed:
-        print("Kaggle: data unchanged, skipping")
-        return
 
     card = (HERE / "dataset-card.md").read_text(encoding="utf-8")
     metadata = {
         "id": ref,
         "title": "Australian Companies (ASIC Company Register)",
-        "subtitle": "Every ASIC-registered company: ACN, ABN, status, dates, former names",
+        "subtitle": "Every ASIC-registered Australian company: ACN, ABN, status, dates, former names",
         "description": card.split("---", 2)[2].strip(),
         "licenses": [{"name": "other"}],
         "keywords": ["business", "australia", "finance"],
+        "resources": KAGGLE_RESOURCES,
+        "userSpecifiedSources": KAGGLE_PROVENANCE,
+        "expectedUpdateFrequency": "weekly",
     }
     (out_dir / "dataset-metadata.json").write_text(json.dumps(metadata, indent=2), encoding="utf-8")
 
-    if exists:
-        resp = api.dataset_create_version(
-            str(out_dir), f"Weekly ASIC sync ({source_url.rsplit('/', 1)[-1]})", quiet=True, dir_mode="skip"
-        )
+    if not exists or changed:
+        if exists:
+            resp = api.dataset_create_version(
+                str(out_dir), f"Weekly ASIC sync ({source_url.rsplit('/', 1)[-1]})", quiet=True, dir_mode="skip"
+            )
+        else:
+            resp = api.dataset_create_new(str(out_dir), public=True, quiet=True, dir_mode="skip")
+        if getattr(resp, "error", None):
+            raise RuntimeError(f"Kaggle upload failed: {resp.error}")
+        print(f"Kaggle: {getattr(resp, 'url', None) or ref}")
     else:
-        resp = api.dataset_create_new(str(out_dir), public=True, quiet=True, dir_mode="skip")
-    if getattr(resp, "error", None):
-        raise RuntimeError(f"Kaggle upload failed: {resp.error}")
-    print(f"Kaggle: {getattr(resp, 'url', None) or ref}")
+        print("Kaggle: data unchanged, skipping upload")
+
+    # File and column descriptions are attached to each uploaded version (from
+    # "resources"). Provenance and update frequency are only set by a metadata
+    # update, which Kaggle rejects (403) while a new version is still
+    # processing, so retry for a few minutes.
+    for attempt in range(10):
+        try:
+            api.dataset_metadata_update(ref, str(out_dir))
+            print("Kaggle: metadata updated")
+            return
+        except HTTPError as e:
+            if e.response is None or e.response.status_code != 403 or attempt == 9:
+                raise
+            time.sleep(30)
 
 
 def main() -> int:
     parser = argparse.ArgumentParser()
     parser.add_argument("--push", action="store_true", help="upload to Hugging Face")
     parser.add_argument("--kaggle", action="store_true", help="with --push, also upload to Kaggle")
+    parser.add_argument("--force-kaggle", action="store_true", help="upload a Kaggle version even if unchanged")
     parser.add_argument("--out-dir", type=Path, default=Path("."))
     parser.add_argument("--source-zip", type=Path, help="use a local ASIC zip instead of downloading")
     args = parser.parse_args()
@@ -236,7 +299,7 @@ def main() -> int:
     if args.push:
         changed = push(args.out_dir, url)
         if args.kaggle:
-            push_kaggle(args.out_dir, url, changed)
+            push_kaggle(args.out_dir, url, changed or args.force_kaggle)
     return 0
 
 

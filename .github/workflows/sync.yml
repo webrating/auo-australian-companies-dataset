@@ -15,6 +15,11 @@ on:
     # in Sydney, safely after.
     - cron: "0 3 * * 3"
   workflow_dispatch:
+    inputs:
+      force_kaggle:
+        description: "Upload a new Kaggle version even if the data is unchanged"
+        type: boolean
+        default: false
 
 concurrency:
   group: hf-dataset-sync
@@ -42,4 +47,5 @@ jobs:
         env:
           HF_TOKEN: ${{ secrets.HF_TOKEN }}
           KAGGLE_API_TOKEN: ${{ secrets.KAGGLE_API_TOKEN }}
-        run: python build.py --push --kaggle --out-dir out
+          FORCE_KAGGLE: ${{ inputs.force_kaggle && '--force-kaggle' || '' }}
+        run: python build.py --push --kaggle $FORCE_KAGGLE --out-dir out
