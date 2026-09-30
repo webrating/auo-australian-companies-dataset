@@ -9,10 +9,11 @@ dates, ABN "0" for none) into two tidy CSVs:
 
     python build.py                # build into the current directory only
     python build.py --push         # build, then upload both CSVs + dataset card
+    python build.py --push --kaggle   # ...and upload a new Kaggle version
 
 --push needs HF_TOKEN (a write token). HF_DATASET_REPO overrides the target.
-Unchanged files are skipped by huggingface_hub, so weeks where ASIC's data is
-identical produce no commit.
+--kaggle needs KAGGLE_API_TOKEN. Unchanged files are skipped by huggingface_hub,
+so weeks where ASIC's data is identical produce no commit on either site.
 """
 
 import argparse
@@ -146,11 +147,14 @@ def build(source_zip: Path, out_dir: Path) -> tuple[int, int]:
     return company_count, former_count
 
 
-def push(out_dir: Path, source_url: str) -> None:
+def push(out_dir: Path, source_url: str) -> bool:
+    """Upload to Hugging Face. Returns True if a new commit was made."""
     from huggingface_hub import CommitOperationAdd, HfApi
 
     repo = os.environ.get("HF_DATASET_REPO", DEFAULT_REPO)
-    info = HfApi(token=os.environ["HF_TOKEN"]).create_commit(
+    api = HfApi(token=os.environ["HF_TOKEN"])
+    before = api.repo_info(repo, repo_type="dataset").sha
+    info = api.create_commit(
         repo_id=repo,
         repo_type="dataset",
         operations=[
@@ -161,11 +165,52 @@ def push(out_dir: Path, source_url: str) -> None:
         commit_message=f"Sync ASIC company register ({source_url.rsplit('/', 1)[-1]})",
     )
     print(f"Hugging Face: {info.commit_url}")
+    return info.oid != before
+
+
+def push_kaggle(out_dir: Path, source_url: str, changed: bool) -> None:
+    """Upload to Kaggle directly. Kaggle's "Remote URL" import can't follow
+    Hugging Face's redirect to its CDN, so it can't pull the files itself."""
+    from kaggle.api.kaggle_api_extended import KaggleApi
+
+    api = KaggleApi()
+    api.authenticate()
+    ref = os.environ.get("KAGGLE_DATASET", DEFAULT_REPO)
+    try:
+        api.dataset_status(ref)
+        exists = True
+    except Exception:
+        exists = False
+    if exists and not changed:
+        print("Kaggle: data unchanged, skipping")
+        return
+
+    card = (HERE / "dataset-card.md").read_text(encoding="utf-8")
+    metadata = {
+        "id": ref,
+        "title": "Australian Companies (ASIC Company Register)",
+        "subtitle": "Every ASIC-registered company: ACN, ABN, status, dates, former names",
+        "description": card.split("---", 2)[2].strip(),
+        "licenses": [{"name": "other"}],
+        "keywords": ["business", "australia", "finance"],
+    }
+    (out_dir / "dataset-metadata.json").write_text(json.dumps(metadata, indent=2), encoding="utf-8")
+
+    if exists:
+        resp = api.dataset_create_version(
+            str(out_dir), f"Weekly ASIC sync ({source_url.rsplit('/', 1)[-1]})", quiet=True, dir_mode="skip"
+        )
+    else:
+        resp = api.dataset_create_new(str(out_dir), public=True, quiet=True, dir_mode="skip")
+    if getattr(resp, "error", None):
+        raise RuntimeError(f"Kaggle upload failed: {resp.error}")
+    print(f"Kaggle: {getattr(resp, 'url', None) or ref}")
 
 
 def main() -> int:
     parser = argparse.ArgumentParser()
     parser.add_argument("--push", action="store_true", help="upload to Hugging Face")
+    parser.add_argument("--kaggle", action="store_true", help="with --push, also upload to Kaggle")
     parser.add_argument("--out-dir", type=Path, default=Path("."))
     parser.add_argument("--source-zip", type=Path, help="use a local ASIC zip instead of downloading")
     args = parser.parse_args()
@@ -190,7 +235,9 @@ def main() -> int:
     print(f"Built {COMPANIES} ({companies} companies) and {FORMER_NAMES} ({former} former names)")
 
     if args.push:
-        push(args.out_dir, url)
+        changed = push(args.out_dir, url)
+        if args.kaggle:
+            push_kaggle(args.out_dir, url, changed)
     return 0
 
 

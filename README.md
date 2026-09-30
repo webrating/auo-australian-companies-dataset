@@ -30,15 +30,15 @@ A GitHub Action ([`.github/workflows/sync.yml`](.github/workflows/sync.yml)) run
 1. Looks up the current Company Dataset zip through the data.gov.au API.
 2. Runs [`build.py`](build.py) to reshape it, failing loudly if ASIC's format changes.
 3. Pushes the CSVs and dataset card to Hugging Face. Unchanged files are skipped.
-
-Kaggle pulls the Hugging Face files on its own schedule.
+4. If anything changed, uploads a new version to Kaggle.
 
 Run it locally:
 
 ```bash
 pip install -r requirements.txt
 python build.py --out-dir out            # build only
-HF_TOKEN=hf_... python build.py --push   # build and upload
+HF_TOKEN=hf_... python build.py --push   # build and upload to Hugging Face
+# add --kaggle (with KAGGLE_API_TOKEN set) to also upload to Kaggle
 ```
 
 ## Source and licence

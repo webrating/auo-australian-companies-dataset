@@ -1,8 +1,10 @@
 name: Sync ASIC companies to Hugging Face
 
 # Rebuilds the dataset from ASIC's Company Dataset on data.gov.au and pushes it
-# to huggingface.co/datasets/ausapis/australian-companies.
-# Needs the HF_TOKEN repo secret (a Hugging Face write token).
+# to huggingface.co/datasets/ausapis/australian-companies and
+# kaggle.com/datasets/ausapis/australian-companies.
+# Needs repo secrets HF_TOKEN (Hugging Face write token) and KAGGLE_API_TOKEN
+# (from kaggle.com/settings, API section).
 #
 # Note: GitHub pauses scheduled workflows in a public repo after 60 days with
 # no commits. It emails a warning first; re-enable from the Actions tab.
@@ -39,4 +41,5 @@ jobs:
       - name: Build and push dataset
         env:
           HF_TOKEN: ${{ secrets.HF_TOKEN }}
-        run: python build.py --push --out-dir out
+          KAGGLE_API_TOKEN: ${{ secrets.KAGGLE_API_TOKEN }}
+        run: python build.py --push --kaggle --out-dir out
