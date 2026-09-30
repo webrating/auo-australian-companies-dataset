@@ -243,13 +243,17 @@ def push_kaggle(out_dir: Path, source_url: str, changed: bool) -> None:
     if not exists or changed:
         if exists:
             resp = api.dataset_create_version(
-                str(out_dir), f"Weekly ASIC sync ({source_url.rsplit('/', 1)[-1]})", quiet=True, dir_mode="skip"
+                str(out_dir), f"Weekly ASIC sync ({source_url.rsplit('/', 1)[-1]})", quiet=False, dir_mode="skip"
             )
         else:
-            resp = api.dataset_create_new(str(out_dir), public=True, quiet=True, dir_mode="skip")
-        if getattr(resp, "error", None):
-            raise RuntimeError(f"Kaggle upload failed: {resp.error}")
-        print(f"Kaggle: {getattr(resp, 'url', None) or ref}")
+            resp = api.dataset_create_new(str(out_dir), public=True, quiet=False, dir_mode="skip")
+        status = (getattr(resp, "status", None) or "").lower()
+        if resp is None or status != "ok":
+            raise RuntimeError(
+                f"Kaggle upload failed: status={status!r} error={getattr(resp, 'error', None)!r} "
+                f"invalid_tags={getattr(resp, 'invalid_tags', None)!r}"
+            )
+        print(f"Kaggle: upload accepted, processing at {resp.url}")
     else:
         print("Kaggle: data unchanged, skipping upload")
 
