@@ -1,0 +1,42 @@
+name: Sync ASIC companies to Hugging Face
+
+# Rebuilds the dataset from ASIC's Company Dataset on data.gov.au and pushes it
+# to huggingface.co/datasets/ausapis/australian-companies.
+# Needs the HF_TOKEN repo secret (a Hugging Face write token).
+#
+# Note: GitHub pauses scheduled workflows in a public repo after 60 days with
+# no commits. It emails a warning first; re-enable from the Actions tab.
+
+on:
+  schedule:
+    # ASIC uploads every Tuesday. Wednesday 03:00 UTC is Wednesday afternoon
+    # in Sydney, safely after.
+    - cron: "0 3 * * 3"
+  workflow_dispatch:
+
+concurrency:
+  group: hf-dataset-sync
+  cancel-in-progress: false
+
+jobs:
+  sync:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v5
+
+      - name: Setup Python
+        uses: actions/setup-python@v6
+        with:
+          python-version: "3.12"
+          cache: pip
+          cache-dependency-path: requirements.txt
+
+      - name: Install dependencies
+        run: pip install -r requirements.txt
+
+      - name: Build and push dataset
+        env:
+          HF_TOKEN: ${{ secrets.HF_TOKEN }}
+        run: python build.py --push --out-dir out
