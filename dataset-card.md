@@ -100,4 +100,4 @@ Source: Australian Securities and Investments Commission (ASIC), [Company Datase
 
 Changes from the original: reshaped from one row per company name to one row per company, former names split into a separate file, dates converted to ISO 8601, ABN `0` replaced with blank, whitespace trimmed, and the "Modified since last report" flag dropped. No records were added or removed.
 
-Not affiliated with or endorsed by ASIC. Built by [AUO](https://auo.com.au); the build code is at [github.com/webrating/australian-companies-dataset](https://github.com/webrating/australian-companies-dataset).
+Not affiliated with or endorsed by ASIC. Built by [AUO](https://auo.com.au); the build code is at [github.com/webrating/auo-australian-companies-dataset](https://github.com/webrating/auo-australian-companies-dataset).
