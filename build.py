@@ -229,7 +229,7 @@ def push_kaggle(out_dir: Path, source_url: str, changed: bool) -> None:
     card = (HERE / "dataset-card.md").read_text(encoding="utf-8")
     metadata = {
         "id": ref,
-        "title": "Australian Companies (ASIC Company Register)",
+        "title": "Australian Companies Data (ASIC Company Register)",
         "subtitle": "Every ASIC-registered Australian company: ACN, ABN, status, dates, former names",
         "description": card.split("---", 2)[2].strip(),
         "licenses": [{"name": "other"}],

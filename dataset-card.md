@@ -2,7 +2,7 @@
 license: other
 license_name: cc-by-3.0-au
 license_link: https://creativecommons.org/licenses/by/3.0/au/
-pretty_name: Australian Companies (ASIC Company Register)
+pretty_name: Australian Companies Data (ASIC Company Register)
 language:
   - en
 tags:
@@ -27,13 +27,13 @@ configs:
     data_files: former_names.csv
 ---
 
-# Australian Companies (ASIC Company Register)
+# Australian Companies Data (ASIC Company Register)
 
-Every company on the Australian Securities and Investments Commission (ASIC) register: about 4 million companies with their ACN, ABN, current name, type, status and registration dates, plus 430,000+ former company names. Refreshed automatically every week from ASIC's official extract on data.gov.au.
+Every company on the **Australian Securities and Investments Commission (ASIC) register**: about 4 million companies with their ACN, ABN, current name, type, status and registration dates, plus 430,000+ former company names. Refreshed automatically every week from ASIC's official extract on data.gov.au.
 
 ASIC publishes this as a tab-separated file with one row per company *name*, DD/MM/YYYY dates and an ABN of `0` when there is none. This dataset reshapes it into one row per company with ISO dates, so it loads cleanly in pandas, Spark, DuckDB or the Hugging Face viewer.
 
-Need live lookups instead of a weekly snapshot? [AUO](https://auo.com.au) resolves any ABN or ACN against every free government register in one API call, with KYB checks and change monitoring.
+Need live [Australian ABN/ACN Business Data API](https://auo.com.au) lookups instead of a weekly snapshot? [AUO](https://auo.com.au) resolves any ABN or ACN against every free government register in one API call, with KYB checks and change monitoring.
 
 ## Files
 
